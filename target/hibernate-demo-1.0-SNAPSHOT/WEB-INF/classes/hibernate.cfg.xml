@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-configuration PUBLIC
+        "-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+        "http://www.hibernate.org/dtd/hibernate-configuration-3.0.dtd">
+<hibernate-configuration>
+    <session-factory>
+        <property name="connection.driver_class">oracle.jdbc.driver.OracleDriver</property>
+        <property name="connection.url">jdbc:oracle:thin:@java-usf-191216.cmd7bslj6nas.us-east-2.rds.amazonaws.com:1521:ORCL</property>
+        <property name="connection.username">movie</property>
+        <property name="connection.password">pass</property>
+
+        <!-- jdbc connection pool size-->
+
+        <property name="connection.pool_size">1</property>
+        <!-- select sql dialect -->
+        <property name="dialect">org.hibernate.dialect.Oracle12cDialect</property>
+
+        <!-- se the current session context-->
+        <property name="current_session_context_class">thread</property>
+        <!-- Optional - use only in dewm not in prod. print any executed sql ti the console-->
+
+        <property name="show_sql">true</property>
+
+        <!-- (optional - use to turn on hbm2ddl-->
+        <!--
+        pssible value
+        -create : upon start, drop the existing table then recreate
+        - calidate: upon start, ensure that existion table match our mapping
+        - update: upon satrt, check dot existing table, if notn - create them
+        -create- drop upon start, create the tables, upon shutdown, drop the table
+
+        -->
+
+        <property name="hbm2ddl.auto">update</property>
+        <!-- inclue any persisten mapping-->
+
+
+
+
+<!--
+        option 1 to load entity to hibenate
+        <mapping class="com.revature.models.Student"/>-->
+
+
+
+
+    </session-factory>
+</hibernate-configuration>
