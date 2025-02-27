@@ -162,3 +162,29 @@ for i in range(120):  # Example with 120 records
 
 # Close to flush remaining records
 csv_writer.close()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import pandas as pd
+
+# Đọc file CSV
+csv_file = "data.csv"
+df = pd.read_csv(csv_file)
+
+# Ghi file Parquet
+parquet_file = "data.parquet"
+df.to_parquet(parquet_file, engine="pyarrow", index=False)
+
+print(f"Đã chuyển đổi {csv_file} sang {parquet_file} thành công!")
