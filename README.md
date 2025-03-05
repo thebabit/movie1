@@ -289,3 +289,67 @@ def close():
         file.close()
         print(f"!!!!! OUTPUT COMPLETED - File {get_partitioned_filename()} closed !!!!!")
     is_started = False
+
+
+
+
+
+
+
+
+
+    import pandas as pd
+import os
+import gzip
+
+# Global variables
+BASE_FILE_NAME = "output"
+PARTITION_SIZE = 1000  # Number of records per partition
+file_index = 1
+record_count = 0
+write_header = True  # Headers only in the first partition
+buffer = []  # Store records before writing
+delimiter = ","  # Default delimiter
+
+def get_partitioned_filename():
+    """Generate a new gzip CSV filename based on partition index."""
+    return f"{BASE_FILE_NAME}_{file_index}.csv.gz"
+
+def start(custom_delimiter=","):
+    """Initialize partitioning and set up global variables."""
+    global record_count, buffer, delimiter, write_header
+    delimiter = custom_delimiter
+    record_count = 0
+    buffer = []  # Reset the buffer
+    print(f"!!!!! OUTPUT STARTED - Writing with delimiter '{delimiter}' !!!!!")
+
+def send(record):
+    """Buffer records and write partitioned files when limit is reached."""
+    global buffer, record_count, file_index, write_header
+
+    buffer.append(record)
+    record_count += 1
+
+    # If partition size is reached, write to a new file
+    if record_count >= PARTITION_SIZE:
+        close()
+        file_index += 1  # Move to the next partition
+        start(delimiter)  # Reset for next partition
+
+def close():
+    """Write buffered records to a gzipped CSV file using pandas."""
+    global buffer, write_header, record_count
+
+    if buffer:
+        file_name = get_partitioned_filename()
+        df = pd.DataFrame(buffer)
+
+        # Write headers only in the first partition
+        df.to_csv(file_name, index=False, header=write_header, sep=delimiter, compression="gzip")
+
+        print(f"!!!!! OUTPUT COMPLETED - File {file_name} written !!!!!")
+
+        # After first file, disable headers for subsequent partitions
+        write_header = False
+        buffer.clear()  # Clear the buffer for next partition
+        record_count = 0  # Reset record count
