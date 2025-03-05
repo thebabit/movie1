@@ -224,3 +224,68 @@ parquet_file = "data.parquet"
 df.to_parquet(parquet_file, engine="pyarrow", index=False)
 
 print(f"Đã chuyển đổi {csv_file} sang {parquet_file} thành công!")
+
+
+
+
+
+
+
+
+
+
+import csv
+import os
+import gzip
+
+# Global variables
+BASE_FILE_NAME = "output"
+PARTITION_SIZE = 1000  # Number of records per partition
+file = None
+writer = None
+is_started = False
+record_count = 0
+file_index = 1
+
+def get_partitioned_filename():
+    """Generate a new gzip CSV filename based on partition index."""
+    return f"{BASE_FILE_NAME}_{file_index}.csv.gz"
+
+def start():
+    """Initialize CSV writing by opening a new partitioned gzipped CSV file."""
+    global file, writer, is_started, file_index, record_count
+    file_name = get_partitioned_filename()
+    file = gzip.open(file_name, mode="wt", newline="", encoding="utf-8")  # Open gzip file in text mode
+    writer = csv.writer(file)
+    record_count = 0  # Reset record counter
+    is_started = True
+    print(f"!!!!! OUTPUT STARTED - Writing to {file_name} !!!!!")
+
+def send(record, headers):
+    """Write a record to the current partitioned and compressed CSV file."""
+    global writer, file, is_started, record_count, file_index
+
+    if not is_started:
+        raise Exception("CSV output has not been started. Call start() first.")
+
+    # Write headers if it's the first record in the partition
+    if record_count == 0 and headers:
+        writer.writerow(headers)
+
+    # Write the record
+    writer.writerow(record)
+    record_count += 1
+
+    # If partition size is reached, close current file and start a new one
+    if record_count >= PARTITION_SIZE:
+        close()
+        file_index += 1  # Move to the next partition
+        start()
+
+def close():
+    """Close the current partitioned gzipped CSV file."""
+    global file, is_started
+    if file:
+        file.close()
+        print(f"!!!!! OUTPUT COMPLETED - File {get_partitioned_filename()} closed !!!!!")
+    is_started = False
