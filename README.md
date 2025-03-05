@@ -55,3 +55,72 @@ def send(record):
 def close():
     """Finalize the current partition (log completion)."""
     print(f"!!!!! OUTPUT COMPLETED - File {get_partitioned_filename()} closed !!!!!")
+
+
+
+
+hhhhhh
+
+
+
+import pandas as pd
+import os
+import gzip
+
+# Global variables
+BASE_FILE_NAME = "output"
+PARTITION_SIZE = 1000  # Number of records per partition
+file_index = 1
+record_count = 0
+write_header = True  # Headers only in the first partition
+delimiter = ","  # Default delimiter
+data_batch = []  # Store partition records before writing
+
+def get_partitioned_filename():
+    """Generate a new gzip CSV filename based on partition index."""
+    return f"{BASE_FILE_NAME}_{file_index}.csv.gz"
+
+def start(custom_delimiter=","):
+    """Initialize partitioning and set up global variables."""
+    global record_count, delimiter, write_header, data_batch
+    delimiter = custom_delimiter
+    record_count = 0
+    data_batch = []  # Reset batch
+    print(f"!!!!! OUTPUT STARTED - Writing with delimiter '{delimiter}' !!!!!")
+
+def send(record):
+    """Buffer records and write the partitioned file when reaching limit."""
+    global data_batch, record_count, file_index, write_header
+
+    data_batch.append(record)
+    record_count += 1
+
+    # If partition size is reached, write to a new file
+    if record_count >= PARTITION_SIZE:
+        close()
+        file_index += 1  # Move to the next partition
+        start(delimiter)  # Reset for next partition
+
+def close():
+    """Write all buffered records to a gzipped CSV file using pandas."""
+    global data_batch, write_header, record_count
+
+    if data_batch:
+        file_name = get_partitioned_filename()
+        df = pd.DataFrame(data_batch)
+
+        # Write headers only in the first partition
+        df.to_csv(
+            file_name,
+            index=False,
+            header=write_header,
+            sep=delimiter,
+            compression="gzip"
+        )
+
+        print(f"!!!!! OUTPUT COMPLETED - File {file_name} written !!!!!")
+
+        # After first partition, disable header writing for subsequent partitions
+        write_header = False
+        data_batch.clear()  # Clear batch after writing
+        record_count = 0  # Reset record count
