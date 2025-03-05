@@ -171,7 +171,43 @@ csv_writer.close()
 
 
 
+class ExternalOutput:
+    def __init__(self):
+        self.is_running = False
+        self.params = {}
 
+    def start(self, **params):
+        """Initialize the external output process."""
+        self.params = params
+        self.is_running = True
+        print(f"ExternalOutput started with parameters: {self.params}")
+
+    def send(self, record, headers):
+        """Send data to the external output destination."""
+        if not self.is_running:
+            raise Exception("ExternalOutput has not been started.")
+        print(f"Sending record: {record} with headers: {headers}")
+
+    def close(self):
+        """Close the external output process."""
+        self.is_running = False
+        print("ExternalOutput closed.")
+
+# Required function for CustomOutput to load this script
+def load_external_script(location):
+    """
+    Mock function to simulate loading an external script.
+    The `location` parameter is just for demonstration.
+    """
+    print(f"Loading external script from: {location}")
+    return ExternalOutput()
+
+def verify_custom_output(instance):
+    """
+    Mock function to verify that the loaded script has the required methods.
+    """
+    required_methods = ['start', 'send', 'close']
+    return all(hasattr(instance, method) for method in required_methods)
 
 
 
