@@ -3,17 +3,18 @@ import os
 import gzip
 import datetime
 
-# Global config
+# Config
 BASE_FILE_NAME = "output"
 PARTITION_SIZE = 1000
 DELIMITER = "|"
 
-# State variables
+# State
 file_index = 1
 record_count = 0
 write_header = True
 batch_records = []
 record_schema = None
+is_dict_mode = False
 
 def get_partitioned_filename():
     return f"{BASE_FILE_NAME}_{file_index}.csv.gz"
@@ -23,7 +24,6 @@ def get_today_filename(extension):
     return f"{today}.{extension}"
 
 def write_auxiliary_files():
-    """Write a .tok file with timestamp and record count, and a .txt file with the schema."""
     now = datetime.datetime.now()
     date_str = now.strftime("%Y%m%d")
     full_timestamp = now.strftime("%Y%m%d%H%M%S")
@@ -44,25 +44,27 @@ def write_auxiliary_files():
     print(f"!!!!! AUX FILES CREATED: {tok_filename}, {txt_filename} !!!!!")
 
 def start():
-    """Initialize/reset writing state."""
-    global file_index, record_count, write_header, batch_records, record_schema
+    global file_index, record_count, write_header, batch_records
     file_index = 1
     record_count = 0
     write_header = True
     batch_records = []
-    record_schema = None
     print(f"!!!!! OUTPUT STARTED - Delimiter '{DELIMITER}' !!!!!")
 
 def send(record):
-    """Queue a record and flush to file when partition size is reached."""
-    global batch_records, record_count, record_schema
+    global batch_records, record_count, record_schema, is_dict_mode
 
-    # Detect schema from the first record
     if record_schema is None:
         if isinstance(record, dict):
             record_schema = list(record.keys())
+            is_dict_mode = True
         elif isinstance(record, list):
             record_schema = [f"col_{i}" for i in range(len(record))]
+            is_dict_mode = False
+
+    if not is_dict_mode and isinstance(record, list):
+        # Convert list to dict using schema
+        record = dict(zip(record_schema, record))
 
     batch_records.append(record)
     record_count += 1
@@ -71,16 +73,13 @@ def send(record):
         flush_partition()
 
 def flush_partition():
-    """Write current batch of records to a partitioned .csv.gz file."""
     global batch_records, file_index, write_header
 
     if not batch_records:
         return
 
     file_name = get_partitioned_filename()
-
-    # Create DataFrame with schema-aware column names
-    df = pd.DataFrame(batch_records, columns=record_schema)
+    df = pd.DataFrame(batch_records)
 
     df.to_csv(
         file_name,
@@ -93,12 +92,10 @@ def flush_partition():
 
     print(f"!!!!! OUTPUT COMPLETED - File {file_name} written with {len(batch_records)} records !!!!!")
 
-    # Prepare for next partition
     file_index += 1
     write_header = False
     batch_records = []
 
 def close():
-    """Flush remaining records and write .tok and .txt files."""
     flush_partition()
     write_auxiliary_files()
