@@ -9,7 +9,7 @@ import shutil
 BASE_FILE_NAME = "output"
 PARTITION_SIZE = 1000
 DELIMITER = "|"
-BUCKET = "your-bucket-name"  # Adjust this path
+BUCKET = "your-bucket-name"  # Simulated destination
 PREFIX = "DMG_DAIFB_MDH_MIDAS_DAILY_MANIFEST_PREFIX"
 PATH_PREFIX = "account/dataconditioner/features/metadata"
 
@@ -23,35 +23,6 @@ record_schema = None
 def get_partitioned_filename():
     return f"{BASE_FILE_NAME}_{file_index}.csv.gz"
 
-def get_today_filename(extension):
-    return f"{datetime.datetime.now().strftime('%Y%m%d')}.{extension}"
-
-def write_tok_file():
-    now = datetime.datetime.now()
-    full_timestamp = now.strftime("%Y%m%d%H%M%S")
-    tok_filename = get_today_filename("tok")
-
-    with open(tok_filename, "w", encoding="utf-8") as f:
-        f.write(f"{full_timestamp}\n")
-        f.write(f"record_count: {record_count}")
-
-    print(f"!!!!! TOK FILE CREATED: {tok_filename} !!!!!")
-
-def write_txt_file():
-    txt_filename = get_today_filename("txt")
-
-    if not batch_records:
-        schema_line = "no schema"
-    else:
-        df = pd.DataFrame(batch_records)
-        schema_line = DELIMITER.join(df.columns.astype(str))
-
-    with open(txt_filename, "w", encoding="utf-8") as f:
-        f.write(schema_line)
-
-    print(f"!!!!! TXT FILE CREATED: {txt_filename} !!!!!")
-
-# XML helpers
 def get_output_file_name(current_time):
     return f"manifest_{current_time.strftime('%Y%m%d_%H%M%S')}.xml"
 
@@ -111,7 +82,6 @@ def write_manifest_xml():
 
     print(f"!!!!! XML MANIFEST CREATED: {final_dest} !!!!!")
 
-# Core logic
 def start():
     global file_index, record_count, write_header, batch_records, record_schema
     file_index = 1
@@ -169,6 +139,4 @@ def flush_partition():
 
 def close():
     flush_partition()
-    write_tok_file()
-    write_txt_file()
     write_manifest_xml()
