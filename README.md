@@ -2,11 +2,16 @@ import pandas as pd
 import os
 import gzip
 import datetime
+import xml.etree.ElementTree as ET
+import shutil
 
 # Config
 BASE_FILE_NAME = "output"
 PARTITION_SIZE = 1000
 DELIMITER = "|"
+BUCKET = "your-bucket-name"  # Adjust this path
+PREFIX = "DMG_DAIFB_MDH_MIDAS_DAILY_MANIFEST_PREFIX"
+PATH_PREFIX = "account/dataconditioner/features/metadata"
 
 # State
 file_index = 1
@@ -46,6 +51,67 @@ def write_txt_file():
 
     print(f"!!!!! TXT FILE CREATED: {txt_filename} !!!!!")
 
+# XML helpers
+def get_output_file_name(current_time):
+    return f"manifest_{current_time.strftime('%Y%m%d_%H%M%S')}.xml"
+
+def get_path(current_time):
+    formatted_time = current_time.strftime('%Y%m%d')
+    return f"{PATH_PREFIX}/{PREFIX}{formatted_time}-staging"
+
+def get_daily_dmg_xml_root(count):
+    upload_file = {
+        "fileName": "DoesntMatter",
+        "fileSize": "54351163438",
+        "recordCount": str(count)
+    }
+
+    upload_file_details = {
+        "processType": "dailyMDHAccountUploadCuke",
+        "uploadId": "092023",
+        "performcorrections": "true",
+        "removecompleteddataflows": "true",
+        "removecompressedfiles": "true",
+        "uploadfiles": [upload_file]
+    }
+
+    return upload_file_details
+
+def create_xml_string(data):
+    root = ET.Element("CreateNewWorkRequest")
+    details = ET.SubElement(root, "UploadFileDetails")
+
+    for key in ["processType", "uploadId", "performcorrections", "removecompleteddataflows", "removecompressedfiles"]:
+        ET.SubElement(details, key).text = data[key]
+
+    files_element = ET.SubElement(details, "uploadfiles")
+    for f in data["uploadfiles"]:
+        file_element = ET.SubElement(files_element, "uploadfile")
+        for field_key, field_val in f.items():
+            ET.SubElement(file_element, field_key).text = field_val
+
+    return ET.tostring(root, encoding="unicode")
+
+def write_manifest_xml():
+    now = datetime.datetime.now()
+    manifest_data = get_daily_dmg_xml_root(record_count)
+    xml_string = create_xml_string(manifest_data).replace("__", "_")
+
+    path = get_path(now)
+    os.makedirs(path, exist_ok=True)
+    file_name = get_output_file_name(now)
+    full_path = os.path.join(path, file_name)
+
+    with open(full_path, "w", encoding="utf-8") as f:
+        f.write(xml_string)
+
+    # Simulate copy to final destination
+    final_dest = os.path.join(BUCKET, file_name)
+    shutil.copy(full_path, final_dest)
+
+    print(f"!!!!! XML MANIFEST CREATED: {final_dest} !!!!!")
+
+# Core logic
 def start():
     global file_index, record_count, write_header, batch_records, record_schema
     file_index = 1
@@ -105,3 +171,4 @@ def close():
     flush_partition()
     write_tok_file()
     write_txt_file()
+    write_manifest_xml()
