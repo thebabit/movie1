@@ -14,7 +14,7 @@ record_count = 0
 write_header = True
 batch_records = []
 record_schema = None
-is_dict_mode = False
+is_dict_mode = None  # will be set once we see first record
 
 def get_partitioned_filename():
     return f"{BASE_FILE_NAME}_{file_index}.csv.gz"
@@ -43,21 +43,20 @@ def write_auxiliary_files():
 
     print(f"!!!!! AUX FILES CREATED: {tok_filename}, {txt_filename} !!!!!")
 
-def start(schema=None):
-    """Start writing. You can provide a schema (list of column names)."""
+def start():
     global file_index, record_count, write_header, batch_records, record_schema, is_dict_mode
     file_index = 1
     record_count = 0
     write_header = True
     batch_records = []
-    record_schema = schema
-    is_dict_mode = False if schema else None
+    record_schema = None
+    is_dict_mode = None
     print(f"!!!!! OUTPUT STARTED - Delimiter '{DELIMITER}' !!!!!")
 
 def send(record):
     global batch_records, record_count, record_schema, is_dict_mode
 
-    # Auto-detect schema if not already provided
+    # Auto-detect schema
     if record_schema is None:
         if isinstance(record, dict):
             record_schema = list(record.keys())
@@ -66,7 +65,8 @@ def send(record):
             record_schema = [f"col_{i}" for i in range(len(record))]
             is_dict_mode = False
 
-    if record_schema and not is_dict_mode and isinstance(record, list):
+    # Convert list to dict using schema (so column names are consistent)
+    if not is_dict_mode and isinstance(record, list):
         record = dict(zip(record_schema, record))
 
     batch_records.append(record)
@@ -82,7 +82,7 @@ def flush_partition():
         return
 
     file_name = get_partitioned_filename()
-    df = pd.DataFrame(batch_records, columns=record_schema)
+    df = pd.DataFrame(batch_records)
 
     df.to_csv(
         file_name,
