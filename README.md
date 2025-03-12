@@ -1,95 +1,43 @@
 import pandas as pd
 import os
-import gzip
 import datetime
-import xml.etree.ElementTree as ET
-import shutil
 
 # Config
 BASE_FILE_NAME = "output"
 PARTITION_SIZE = 1000
-DELIMITER = "|"
-BUCKET = "your-bucket-name"  # Simulated destination
-PREFIX = "DMG_DAIFB_MDH_MIDAS_DAILY_MANIFEST_PREFIX"
-PATH_PREFIX = "account/dataconditioner/features/metadata"
+DELIMITER = "|"  # Not used anymore, but kept for compatibility
+PARQUET_COMPRESSION = "snappy"
 
 # State
 file_index = 1
 record_count = 0
-write_header = True
 batch_records = []
 record_schema = None
 
 def get_partitioned_filename():
-    return f"{BASE_FILE_NAME}_{file_index}.csv.gz"
+    return f"{BASE_FILE_NAME}_{file_index}.parquet"
 
-def get_output_file_name(current_time):
-    return f"manifest_{current_time.strftime('%Y%m%d_%H%M%S')}.xml"
+def get_today_filename(extension):
+    return f"{datetime.datetime.now().strftime('%Y%m%d')}.{extension}"
 
-def get_path(current_time):
-    formatted_time = current_time.strftime('%Y%m%d')
-    return f"{PATH_PREFIX}/{PREFIX}{formatted_time}-staging"
-
-def get_daily_dmg_xml_root(count):
-    upload_file = {
-        "fileName": "DoesntMatter",
-        "fileSize": "54351163438",
-        "recordCount": str(count)
-    }
-
-    upload_file_details = {
-        "processType": "dailyMDHAccountUploadCuke",
-        "uploadId": "092023",
-        "performcorrections": "true",
-        "removecompleteddataflows": "true",
-        "removecompressedfiles": "true",
-        "uploadfiles": [upload_file]
-    }
-
-    return upload_file_details
-
-def create_xml_string(data):
-    root = ET.Element("CreateNewWorkRequest")
-    details = ET.SubElement(root, "UploadFileDetails")
-
-    for key in ["processType", "uploadId", "performcorrections", "removecompleteddataflows", "removecompressedfiles"]:
-        ET.SubElement(details, key).text = data[key]
-
-    files_element = ET.SubElement(details, "uploadfiles")
-    for f in data["uploadfiles"]:
-        file_element = ET.SubElement(files_element, "uploadfile")
-        for field_key, field_val in f.items():
-            ET.SubElement(file_element, field_key).text = field_val
-
-    return ET.tostring(root, encoding="unicode")
-
-def write_manifest_xml():
+def write_tok_file():
     now = datetime.datetime.now()
-    manifest_data = get_daily_dmg_xml_root(record_count)
-    xml_string = create_xml_string(manifest_data).replace("__", "_")
+    full_timestamp = now.strftime("%Y%m%d%H%M%S")
+    tok_filename = get_today_filename("tok")
 
-    path = get_path(now)
-    os.makedirs(path, exist_ok=True)
-    file_name = get_output_file_name(now)
-    full_path = os.path.join(path, file_name)
+    with open(tok_filename, "w", encoding="utf-8") as f:
+        f.write(f"{full_timestamp}\n")
+        f.write(f"record_count: {record_count}")
 
-    with open(full_path, "w", encoding="utf-8") as f:
-        f.write(xml_string)
-
-    # Simulate copy to final destination
-    final_dest = os.path.join(BUCKET, file_name)
-    shutil.copy(full_path, final_dest)
-
-    print(f"!!!!! XML MANIFEST CREATED: {final_dest} !!!!!")
+    print(f"!!!!! TOK FILE CREATED: {tok_filename} !!!!!")
 
 def start():
-    global file_index, record_count, write_header, batch_records, record_schema
+    global file_index, record_count, batch_records, record_schema
     file_index = 1
     record_count = 0
-    write_header = True
     batch_records = []
     record_schema = None
-    print(f"!!!!! OUTPUT STARTED - Delimiter '{DELIMITER}' !!!!!")
+    print("!!!!! OUTPUT STARTED - Parquet with Snappy Compression !!!!!")
 
 def send(record):
     global batch_records, record_count, record_schema
@@ -102,7 +50,7 @@ def send(record):
         else:
             raise ValueError("First record must be a list or dict")
         print(f"Schema captured: {record_schema}")
-        return  # First record is schema only
+        return  # Skip this as data
 
     if isinstance(record, list):
         record = dict(zip(record_schema, record))
@@ -114,7 +62,7 @@ def send(record):
         flush_partition()
 
 def flush_partition():
-    global batch_records, file_index, write_header
+    global batch_records, file_index
 
     if not batch_records:
         return
@@ -122,21 +70,18 @@ def flush_partition():
     file_name = get_partitioned_filename()
     df = pd.DataFrame(batch_records, columns=record_schema)
 
-    df.to_csv(
+    df.to_parquet(
         file_name,
         index=False,
-        header=write_header,
-        sep=DELIMITER,
-        compression="gzip",
-        mode="w"
+        compression=PARQUET_COMPRESSION,
+        engine="pyarrow"
     )
 
-    print(f"!!!!! OUTPUT COMPLETED - File {file_name} written with {len(batch_records)} records !!!!!")
+    print(f"!!!!! PARQUET WRITTEN: {file_name} with {len(batch_records)} records !!!!!")
 
     file_index += 1
-    write_header = False
     batch_records = []
 
 def close():
     flush_partition()
-    write_manifest_xml()
+    write_tok_file()
