@@ -57,7 +57,7 @@ def send(record):
     """Queue a record and flush to file when partition size is reached."""
     global batch_records, record_count, record_schema
 
-    # Capture schema from the first record
+    # Detect schema from the first record
     if record_schema is None:
         if isinstance(record, dict):
             record_schema = list(record.keys())
@@ -78,7 +78,9 @@ def flush_partition():
         return
 
     file_name = get_partitioned_filename()
-    df = pd.DataFrame(batch_records)
+
+    # Create DataFrame with schema-aware column names
+    df = pd.DataFrame(batch_records, columns=record_schema)
 
     df.to_csv(
         file_name,
