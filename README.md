@@ -1,87 +1,54 @@
-import pandas as pd
-import os
-import datetime
+wmi:
+    _class: SQLTransformer
+    sqlText: |
+      SELECT entp_prty_id,
+        CASE
+          WHEN prod_cd = '120'
+            AND sub_prod_cd IN ('065', '066', '067', '030', '031', '050', '051', '054')
+            AND acct_actv_sts_cd = '002'
+            AND sum_sts_cd = '0'
+          THEN 'N'
+          WHEN prod_cd = '120'
+            AND sub_prod_cd IN ('060', '061', '062', '063')
+          THEN 'Y'
+          WHEN acct_actv_sts_cd = '002'
+            AND sum_sts_cd = '0'
+          THEN 'Y'
+          WHEN prty_ar_rel_cd IN ('001', '076', '151')
+          THEN 'Y'
+          ELSE 'N'
+        END AS wmi
+      FROM cust_acct_rel;
 
-# Config
-BASE_FILE_NAME = "output"
-PARTITION_SIZE = 1000
-DELIMITER = "|"  # Not used anymore, but kept for compatibility
-PARQUET_COMPRESSION = "snappy"
 
-# State
-file_index = 1
-record_count = 0
-batch_records = []
-record_schema = None
 
-def get_partitioned_filename():
-    return f"{BASE_FILE_NAME}_{file_index}.parquet"
 
-def get_today_filename(extension):
-    return f"{datetime.datetime.now().strftime('%Y%m%d')}.{extension}"
 
-def write_tok_file():
-    now = datetime.datetime.now()
-    full_timestamp = now.strftime("%Y%m%d%H%M%S")
-    tok_filename = get_today_filename("tok")
 
-    with open(tok_filename, "w", encoding="utf-8") as f:
-        f.write(f"{full_timestamp}\n")
-        f.write(f"record_count: {record_count}")
 
-    print(f"!!!!! TOK FILE CREATED: {tok_filename} !!!!!")
 
-def start():
-    global file_index, record_count, batch_records, record_schema
-    file_index = 1
-    record_count = 0
-    batch_records = []
-    record_schema = None
-    print("!!!!! OUTPUT STARTED - Parquet with Snappy Compression !!!!!")
 
-def send(record):
-    global batch_records, record_count, record_schema
 
-    if record_schema is None:
-        if isinstance(record, dict):
-            record_schema = list(record.keys())
-        elif isinstance(record, list):
-            record_schema = [f"col_{i}" for i in range(len(record))]
-        else:
-            raise ValueError("First record must be a list or dict")
-        print(f"Schema captured: {record_schema}")
-        return  # Skip this as data
 
-    if isinstance(record, list):
-        record = dict(zip(record_schema, record))
 
-    batch_records.append(record)
-    record_count += 1
 
-    if len(batch_records) >= PARTITION_SIZE:
-        flush_partition()
 
-def flush_partition():
-    global batch_records, file_index
 
-    if not batch_records:
-        return
 
-    file_name = get_partitioned_filename()
-    df = pd.DataFrame(batch_records, columns=record_schema)
 
-    df.to_parquet(
-        file_name,
-        index=False,
-        compression=PARQUET_COMPRESSION,
-        engine="pyarrow"
-    )
 
-    print(f"!!!!! PARQUET WRITTEN: {file_name} with {len(batch_records)} records !!!!!")
 
-    file_index += 1
-    batch_records = []
 
-def close():
-    flush_partition()
-    write_tok_file()
+
+
+
+sdi_wmi_joined:
+    _class: SQLTransformer
+    sqlText: |
+      SELECT 
+        sdi.entp_prty_id,
+        sdi.sdi_only,
+        wmi.wmi
+      FROM sdi_only sdi
+      JOIN wmi wmi
+        ON sdi.entp_prty_id = wmi.entp_prty_id;
