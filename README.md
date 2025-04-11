@@ -1,24 +1,23 @@
-data_feature_value:
-    _class: SQLTransformer
-    sqlText: |
-      SELECT 
-        entp_prty_id,
-        TO_JSON(NAMED_STRUCT(
-          'dataFeatures', FILTER(ARRAY(
-            CASE 
-              WHEN sdi_only IS NOT NULL THEN
-                NAMED_STRUCT(
-                  'featureCalculationTypeCode', 'SELFDIRECTEDACCOUNTS_ONLY_ACTIVE_OWNERSHIP_INDICATOR',
-                  'featureCalculationValueText', CAST(sdi_only AS STRING)
-                )
-            END,
-            CASE 
-              WHEN wmi IS NOT NULL THEN
-                NAMED_STRUCT(
-                  'featureCalculationTypeCode', 'WMPI_ONLY_ACTIVE_OWNERSHIP_INDICATOR',
-                  'featureCalculationValueText', CAST(wmi AS STRING)
-                )
-            END
-          ), x -> x IS NOT NULL)
-        )) AS data_fetr_val_tx
-      FROM sdi_wmi_joined;
+import static org.apache.spark.sql.functions.*;
+
+public class InclusionReasonSchemaMutator {
+    public static Dataset<Row> addFieldToInclusionReasonValueText(Dataset<Row> input) {
+        return input.withColumn("audienceDataFeatures",
+                expr("transform(audienceDataFeatures, x -> struct(" +
+                        "x.inclusionReasonTypeCode as inclusionReasonTypeCode, " +
+                        "struct(" +
+                        "x.inclusionReasonValueText.audienceDataFeatureTypeCode as audienceDataFeatureTypeCode, " +
+                        "x.inclusionReasonValueText.hashedAccountNumber as hashedAccountNumber, " +
+                        "x.inclusionReasonValueText.accountReferenceNumber as accountReferenceNumber, " +
+                        "x.inclusionReasonValueText.accountIdentifier as accountIdentifier, " +
+                        "x.inclusionReasonValueText.productCode as productCode, " +
+                        "x.inclusionReasonValueText.subProductCode as subProductCode, " +
+                        "x.inclusionReasonValueText.marketingProductCode as marketingProductCode, " +
+                        "x.inclusionReasonValueText.audienceDataFeatureStatusCode as audienceDataFeatureStatusCode, " +
+                        "x.inclusionReasonValueText.entryTimestamp as entryTimestamp, " +
+                        "x.inclusionReasonValueText.expirationTimestamp as expirationTimestamp, " +
+                        "'YES' as productCheck" +
+                        ") as inclusionReasonValueText" +
+                        "))"));
+    }
+}
